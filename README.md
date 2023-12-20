@@ -4,5 +4,6 @@ Gets weather predictions for the next week from OpenWeatherMap for a given city 
 
 Run as ``weather [city[,country-code]]``:
 
+![weather](https://github.com/ivomac/weather/assets/45886067/fa27eb46-ecfb-4053-8179-71cb44e52fdf)
 
 The emoji characters are well aligned for the ttf-symbola font. If you use another font you might have to adjust their width by adding/removing spaces in the mapping table for a good table alignment.
