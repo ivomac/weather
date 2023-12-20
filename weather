@@ -1,0 +1,151 @@
+#!/usr/bin/python
+
+from requests import get
+from bisect import bisect
+from termcolor import colored
+from os import getenv
+from datetime import datetime
+from argparse import ArgumentParser
+
+
+def main():
+    symbols = {
+        "clear sky": "🌣 ",
+        "few clouds": "🌤️",
+        "scattered clouds": "🌥️",
+        "broken clouds": "🌥️",
+        "overcast clouds": "☁ ",
+        "light rain": "☔",
+        "moderate rain": "🌦️",
+        "heavy rain": "🌧️",
+        "heavy intensity rain": "⛈ ",
+        "light snow": "⛇ ",
+        "snow": "🌨 ",
+    }
+
+    parser = ArgumentParser(
+        description=(
+            "5-day weather forecast, retrieved from the openweathermap API."
+        ),
+        add_help=True,
+    )
+    parser.add_argument(
+        "CITY",
+        nargs="*",
+        help=(
+            "citie(s) to get the weather of (format: [city],[country code]) "
+            "(defaults to current location estimate)"
+        ),
+    )
+    parser.add_argument(
+        "-f",
+        "--feels-like",
+        action="store_const",
+        default="temp",
+        const="feels_like",
+        help='Show "Feels like" temperature instead.',
+    )
+    parser.add_argument(
+        "-c",
+        "--print-codes",
+        action="store_true",
+        help="print Unicode symbol legend.",
+    )
+    args = parser.parse_args()
+
+    if not args.CITY:
+        user_agent = {"User-agent": "Mozilla/5.0"}
+        li = get("https://ipapi.co/json", headers=user_agent).json()
+        city = f'{li["city"]},{li["country_code"]}'
+        city_weather(city, symbols, args)
+    else:
+        for city in args.CITY:
+            city_weather(city, symbols, args)
+
+    if args.print_codes:
+        printcodes(symbols)
+
+
+def printcodes(symbols):
+    print()
+    for key in symbols.keys():
+        print(f"{symbols[key]}: {key}")
+
+
+def printheader(city, args):
+    it_len = 7
+    lstring = (f" {city} ").center(3 + 4 * it_len, "-")
+    print(lstring.ljust(3 + 8 * it_len, "-"))
+    print(" " * 2, end="")
+    for h in range(8):
+        print((f" {3*h:2d}h").center(it_len), end="")
+
+
+def formattedtime(d):
+    date, time = d.split(" ")
+    time = int(time[:2])
+    date = datetime.strptime(date, "%Y-%m-%d").strftime("%a")
+    return date, time
+
+
+def firstlinepadding(d, args):
+    date, time = formattedtime(d)
+    if time:
+        print("\n" + date, end="")
+        print(" " * 7 * (time // 3), end="")
+
+
+def toscale(q):
+    if q == 100:
+        return "f"
+    else:
+        return str(q // 10)
+
+
+def city_weather(city, symbols, args):
+    unr_weathers = []
+    params = {
+        "appid": getenv("OWM_API_KEY"),
+        "q": city,
+        "cnt": 40,
+        "units": "metric",
+    }
+
+    url = "https://api.openweathermap.org/data/2.5/forecast"
+    wi = get(url, params=params).json()
+
+    printheader(f'{wi["city"]["name"]},{wi["city"]["country"]}', args)
+    firstlinepadding(wi["list"][0]["dt_txt"], args)
+
+    for it in wi["list"]:
+        date, time = formattedtime(it["dt_txt"])
+        if not time:
+            print("\n%s" % (date), end="")
+
+        weather = it["weather"][0]["description"]
+        sym = symbols.get(weather, "? ")
+
+        thrs = [
+            [8, 14, 26, 30, 35],
+            ["blue", "cyan", None, "yellow", "red", "magenta"],
+        ]
+        print(colortext(it["main"][args.feels_like], thrs) + sym, end="")
+
+        if "? " in sym:
+            unr_weathers.append(weather)
+
+    print("")
+
+    if len(unr_weathers) != 0:
+        print("No symbol for the following weather(s):")
+        print(", ".join(unr_weathers))
+    return
+
+
+def colortext(val, thrs):
+    color = thrs[1][bisect(thrs[0], val)]
+
+    return colored(f" {round(val):+03d}°", color)
+
+
+main()
